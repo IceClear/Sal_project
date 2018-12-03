@@ -30,7 +30,7 @@ g_optim = torch.optim.Adagrad(generator.parameters(), lr=lr)
 
 num_epoch = 120
 dataloader = DataLoader(batch_size)
-num_batch = dataloader.num_batches# length of data / batch_size
+num_batch = int(dataloader.num_batches)# length of data / batch_size
 print(num_batch)
 
 def to_variable(x,requires_grad=True):
