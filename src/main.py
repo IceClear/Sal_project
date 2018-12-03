@@ -4,7 +4,7 @@ import torch.nn as nn
 import numpy as np
 import time
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from tqdm import tqdm
 from torch.autograd import Variable
 from logger import Logger
@@ -47,27 +47,27 @@ validation_sample = cv2.imread("COCO_val2014_000000143859.png")
 
 for current_epoch in tqdm(range(1,num_epoch+1)):
     n_updates = 1
-    
+
     d_cost_avg = 0
     g_cost_avg = 0
     for idx in range(num_batch):
-            
+
         (batch_img, batch_map) = dataloader.get_batch()
         batch_img = to_variable(batch_img,requires_grad=False)
         batch_map = to_variable(batch_map,requires_grad=False)
         real_labels = to_variable(torch.FloatTensor(np.ones(batch_size, dtype = float)),requires_grad=False)
         fake_labels = to_variable(torch.FloatTensor(np.zeros(batch_size, dtype = float)),requires_grad=False)
-        
+
         if n_updates % 2 == 1:
             #print('Training Discriminator...')
             #discriminator.zero_grad()
             d_optim.zero_grad()
-            inp_d = torch.cat((batch_img,batch_map),1)            
+            inp_d = torch.cat((batch_img,batch_map),1)
             #print(inp_d.size())
             outputs = discriminator(inp_d).squeeze()
             d_real_loss = loss_function(outputs,real_labels)
             #print('D_real_loss = ', d_real_loss.data[0])
-            
+
             #print(outputs)
             real_score = outputs.data.mean()
 
@@ -78,7 +78,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
 #            print('D_fake_loss = ', d_fake_loss.data[0])
             d_loss = torch.sum(torch.log(outputs))
             d_cost_avg += d_loss.data[0]
-            
+
             d_loss.backward()
             d_loss.register_hook(print)
             d_optim.step()
@@ -103,7 +103,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
             g_loss = torch.sum(g_dis_loss + alpha * g_gen_loss)
 
             g_cost_avg += g_loss.data[0]
-            
+
             g_loss.backward()
             g_optim.step()
             info = {
@@ -122,7 +122,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
         counter += 1
     d_cost_avg /= num_batch
     g_cost_avg /= num_batch
-        
+
     # Save weights every 3 epoch
     if (current_epoch + 1) % 3 == 0:
         print('Epoch:', current_epoch, ' train_loss->', (d_cost_avg, g_cost_avg))
