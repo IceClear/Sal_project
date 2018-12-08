@@ -14,6 +14,8 @@ from discriminator import Discriminator
 from generator import Generator
 from utils import *
 
+if_use_wgan_gp = True
+
 logger = Logger('./logs')
 batch_size = 40
 lr = 0.0003
@@ -21,12 +23,17 @@ lr = 0.0003
 discriminator = Discriminator()
 generator = Generator()
 if torch.cuda.is_available():
+    use_cuda = True
     discriminator.cuda()
     generator.cuda()
 loss_function = nn.BCELoss()
 
-d_optim = torch.optim.Adagrad(discriminator.parameters(), lr=lr)
-g_optim = torch.optim.Adagrad(generator.parameters(), lr=lr)
+if if_use_wgan_gp:
+    d_optim = torch.optim.Adam(discriminator.parameters(), lr=1e-4, betas=(0.5, 0.9))
+    g_optim = torch.optim.Adam(generator.parameters(), lr=1e-4, betas=(0.5, 0.9))
+else:
+    d_optim = torch.optim.Adagrad(discriminator.parameters(), lr=lr)
+    g_optim = torch.optim.Adagrad(generator.parameters(), lr=lr)
 
 num_epoch = 120
 dataloader = DataLoader(batch_size)
@@ -37,6 +44,28 @@ def to_variable(x,requires_grad=True):
     if torch.cuda.is_available():
         x = x.cuda()
     return Variable(x,requires_grad)
+
+def calc_gradient_penalty(netD, real_data, fake_data):
+    #print real_data.size()
+    alpha = torch.rand(BATCH_SIZE, 1)
+    alpha = alpha.expand(real_data.size())
+    alpha = alpha.cuda() if use_cuda else alpha
+
+    interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+
+    if use_cuda:
+        interpolates = interpolates.cuda()
+    interpolates = autograd.Variable(interpolates, requires_grad=True)
+
+    disc_interpolates = netD(interpolates)
+
+    gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
+                              grad_outputs=torch.ones(disc_interpolates.size()).cuda() if use_cuda else torch.ones(
+                                  disc_interpolates.size()),
+                              create_graph=True, retain_graph=True, only_inputs=True)[0]
+
+    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
+    return gradient_penalty
 
 counter = 0
 start_time = time.time()
@@ -62,50 +91,104 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
             #print('Training Discriminator...')
             #discriminator.zero_grad()
             d_optim.zero_grad()
-            inp_d = torch.cat((batch_img,batch_map),1)
-            #print(inp_d.size())
-            outputs = discriminator(inp_d).squeeze()
-            d_real_loss = loss_function(outputs,real_labels)
-            #print('D_real_loss = ', d_real_loss.data[0])
 
-            #print(outputs)
-            real_score = outputs.data.mean()
+            if if_use_wgan_gp:
+                for p in discriminator.parameters():  # reset requires_grad
+                    p.requires_grad = True  # they are set to False below in netG update
 
-#            fake_map = generator(batch_img)
-#            inp_d = torch.cat((batch_img,fake_map),1)
-#            outputs = discriminator(inp_d)
-#            d_fake_loss = loss_function(outputs, fake_labels)
-#            print('D_fake_loss = ', d_fake_loss.data[0])
-            d_loss = torch.sum(torch.log(outputs))
-            d_cost_avg += d_loss.data[0]
+                discriminator.zero_grad()
+                inp_d = torch.cat((batch_img,batch_map),1)
 
-            d_loss.backward()
-            d_loss.register_hook(print)
-            d_optim.step()
+                # train with real
+                D_real = discriminator(inp_d)
+                D_real = D_real.mean()
+                # print D_real
+                D_real.backward(mone)
+
+                fake_map = generator(batch_img)
+                inp_d_fake = torch.cat((batch_img,fake_map),1)
+                D_fake = discriminator(inp_d_fake)
+
+                D_fake = D_fake.mean()
+                D_fake.backward(one)
+
+                # train with gradient penalty
+                gradient_penalty = calc_gradient_penalty(discriminator, inp_d.data, inp_d_fake.data)
+                gradient_penalty.backward()
+
+                d_loss = D_fake - D_real + gradient_penalty
+                d_loss.register_hook(print)
+                Wasserstein_D = D_real - D_fake
+                real_score = Wasserstein_D
+                d_cost_avg += d_loss.data[0]
+                d_optim.step()
+
+            else:
+                inp_d = torch.cat((batch_img,batch_map),1)
+                #print(inp_d.size())
+                outputs = discriminator(inp_d).squeeze()
+
+
+                d_real_loss = loss_function(outputs,real_labels)
+                d_real_loss = loss_function(outputs,real_labels)
+                #print('D_real_loss = ', d_real_loss.data[0])
+
+                #print(outputs)
+                real_score = outputs.data.mean()
+
+    #            fake_map = generator(batch_img)
+    #            inp_d = torch.cat((batch_img,fake_map),1)
+    #            outputs = discriminator(inp_d)
+    #            d_fake_loss = loss_function(outputs, fake_labels)
+    #            print('D_fake_loss = ', d_fake_loss.data[0])
+                d_loss = torch.sum(torch.log(outputs))
+                d_cost_avg += d_loss.data[0]
+
+                d_loss.backward()
+                d_loss.register_hook(print)
+                d_optim.step()
+
             info = {
                  'd_loss' : d_loss.data[0],
-                 'real_score_mean' : real_score,
+                 'real_score_mean/Wasserstein_D' : real_score,
             }
             for tag,value in info.items():
                 logger.scalar_summary(tag, value, counter)
         else:
             #print('Training Generator...')
             #generator.zero_grad()
+            if if_use_wgan_gp:
+                for p in discriminator.parameters():
+                    p.requires_grad = False  # to avoid computation
             g_optim.zero_grad()
-            fake_map = generator(batch_img)
-            inp_d = torch.cat((batch_img,fake_map),1)
-            outputs = discriminator(inp_d)
-            fake_score = outputs.data.mean()
 
-            g_gen_loss = loss_function(fake_map,batch_map)
-            g_dis_loss = -torch.log(outputs)
-            alpha = 0.05
-            g_loss = torch.sum(g_dis_loss + alpha * g_gen_loss)
+            if if_use_wgan_gp:
+                fake_map = generator(batch_img)
+                inp_d = torch.cat((batch_img,fake_map),1)
 
-            g_cost_avg += g_loss.data[0]
+                outputs = discriminator(inp_d)
+                fake_score = outputs.data.mean()
+                fake_score.backward(mone)
+                g_cost = -fake_score
+                g_cost_avg += g_cost.data[0]
+                g_optim.step()
 
-            g_loss.backward()
-            g_optim.step()
+            else:
+                fake_map = generator(batch_img)
+                inp_d = torch.cat((batch_img,fake_map),1)
+                outputs = discriminator(inp_d)
+                fake_score = outputs.data.mean()
+
+                g_gen_loss = loss_function(fake_map,batch_map)
+                g_dis_loss = -torch.log(outputs)
+                alpha = 0.05
+                g_loss = torch.sum(g_dis_loss + alpha * g_gen_loss)
+
+                g_cost_avg += g_loss.data[0]
+
+                g_loss.backward()
+                g_optim.step()
+
             info = {
                   'g_loss' : g_loss.data[0],
                   'fake_score_mean' : fake_score,
