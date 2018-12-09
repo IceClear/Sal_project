@@ -16,6 +16,7 @@ from generator import Generator
 from utils import *
 
 if_use_wgan_gp = True
+if_vis = True
 
 logger = Logger('./logs')
 batch_size = 40
@@ -26,6 +27,110 @@ generator = Generator()
 one = torch.FloatTensor([1])
 mone = one * -1
 LAMBDA = 10
+
+try:
+    discriminator.load_state_dict(torch.load("./discriminator.pkl"))
+    generator.load_state_dict(torch.load("./generator.pkl"))
+    print('Load learner previous point: Successed')
+except Exception as e:
+    print('Load learner previous point: Failed')
+
+if if_vis:
+    TMUX = 'TMUX 0'
+    port = 8097
+    from visdom import Visdom
+    viz = Visdom(port=port)
+    win = None
+    win_dic = {}
+    recorder = {
+        'plot':{},
+        'line':{},
+        'scatter':{},
+        'image':{},
+        'text':{},
+        'fixations':{},
+    }
+    def record(name,value,data_type='plot'):
+        if data_type in ['plot','scatter']:
+            try:
+                # try expend
+                recorder[data_type][name] += [value]
+            except Exception as e:
+                # else, initialize
+                recorder[data_type][name] = [value]
+        else:
+            recorder[data_type][name] = value
+
+    def log_visdom():
+        '''push everything to the visdom server'''
+
+        # plot lines
+        for plot_name in recorder['plot'].keys():
+            if plot_name in win_dic.keys():
+                if len(recorder['plot'][plot_name]) > 0:
+                    win_dic[plot_name] = viz.line(
+                        torch.from_numpy(np.asarray(recorder['plot'][plot_name])),
+                        win=win_dic[plot_name],
+                        opts=dict(title=TMUX+'\n'+plot_name)
+                    )
+            else:
+                win_dic[plot_name] = None
+
+        for plot_name in recorder['scatter'].keys():
+            if plot_name in win_dic.keys():
+                if len(recorder['scatter'][plot_name]) > 0:
+                    win_dic[plot_name] = viz.scatter(
+                        torch.from_numpy(
+                            np.asarray(recorder['scatter'][plot_name])
+                        ),
+                        win=win_dic[plot_name],
+                        opts=dict(title=TMUX+'\n'+plot_name)
+                    )
+            else:
+                win_dic[plot_name] = None
+
+        for plot_name in recorder['fixations'].keys():
+            if plot_name in win_dic.keys():
+                if len(recorder['fixations'][plot_name]) > 0:
+                    win_dic[plot_name] = viz.scatter(
+                        torch.from_numpy(
+                            np.asarray(recorder['fixations'][plot_name])
+                        ),
+                        win=win_dic[plot_name],
+                        opts=dict(title=TMUX+'\n'+plot_name)
+                    )
+            else:
+                win_dic[plot_name] = None
+
+        # log images
+        for images_name in recorder['image'].keys():
+            if images_name in win_dic.keys():
+                win_dic[images_name] = viz.images(
+                    recorder['image'][images_name],
+                    win=win_dic[images_name],
+                    opts=dict(title=TMUX+'\n'+images_name)
+                )
+            else:
+                win_dic[images_name] = None
+
+        # log text
+        for text_name in recorder['text'].keys():
+            if text_name in win_dic.keys():
+                win_dic[text_name] = viz.text(
+                    recorder['text'][text_name],
+                    win=win_dic[text_name],
+                    opts=dict(title=TMUX+'\n'+text_name)
+                )
+            else:
+                win_dic[text_name] = None
+
+'''record basic information'''
+record(
+    'basic info',
+    (TMUX +'<br>'+'train'+'<br>'+'wgan-gp: '+ str(if_use_wgan_gp)),
+    'text'
+    )
+
 
 if torch.cuda.is_available():
     use_cuda = True
@@ -104,6 +209,8 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
             if if_use_wgan_gp:
                 for p in discriminator.parameters():  # reset requires_grad
                     p.requires_grad = True  # they are set to False below in netG update
+                for p in generator.parameters():  # reset requires_grad
+                    p.requires_grad = False  # they are set to False below in netG update
 
                 discriminator.zero_grad()
                 inp_d = torch.cat((batch_img,batch_map),1)
@@ -163,14 +270,16 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                  'd_loss' : d_loss.data[0],
                  'real_score_mean/Wasserstein_D' : real_score,
             }
-            for tag,value in info.items():
-                logger.scalar_summary(tag, value, counter)
+            # for tag,value in info.items():
+            #     logger.scalar_summary(tag, value, counter)
         else:
             #print('Training Generator...')
             #generator.zero_grad()
             if if_use_wgan_gp:
                 for p in discriminator.parameters():
                     p.requires_grad = False  # to avoid computation
+                for p in generator.parameters():
+                    p.requires_grad = True
             g_optim.zero_grad()
 
             if if_use_wgan_gp:
@@ -184,6 +293,19 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 g_loss = -fake_score
                 g_cost_avg += g_loss.data[0]
                 g_optim.step()
+
+                if (idx+1)%100 == 0:
+                    record(
+                        name = 'img',
+                        value = batch_img[0:1],
+                        data_type = 'image',
+                    )
+
+                    record(
+                        name = 'sal_map',
+                        value = fake_map[0:1]*255,
+                        data_type = 'image',
+                    )
 
             else:
                 fake_map = generator(batch_img)
@@ -205,8 +327,8 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                   'g_loss' : g_loss.data[0],
                   'fake_score_mean' : fake_score,
             }
-            for tag,value in info.items():
-                logger.scalar_summary(tag, value, counter)
+            # for tag,value in info.items():
+            #     logger.scalar_summary(tag, value, counter)
 
         n_updates += 1
 
@@ -214,6 +336,20 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
             print("Epoch [%d/%d], Step[%d/%d], d_loss: %.4f, g_loss: %.4f, D(x): %2.f, D(G(x)): %.2f, time: %4.4f"
 		        % (current_epoch, num_epoch, idx+1, num_batch, d_loss.data[0], g_loss.data[0],
 		        real_score, fake_score, time.time()-start_time))
+
+            record(
+                    name = 'loss_d',
+                    value = d_loss.data.cpu().numpy(),
+                    data_type = 'plot',
+                )
+
+            record(
+                    name = 'loss_g',
+                    value = g_loss.data.cpu().numpy(),
+                    data_type = 'plot',
+                )
+            log_visdom()
+
         counter += 1
     d_cost_avg /= num_batch
     g_cost_avg /= num_batch
