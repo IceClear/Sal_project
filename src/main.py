@@ -4,7 +4,7 @@ import torch.nn as nn
 import numpy as np
 import time
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 from tqdm import tqdm
 import torch.autograd as autograd
 from torch.autograd import Variable
@@ -15,7 +15,7 @@ from discriminator import Discriminator
 from generator import Generator
 from utils import *
 
-if_use_wgan_gp = False
+if_use_wgan_gp = True
 if_vis = True
 
 logger = Logger('./logs')
@@ -26,7 +26,7 @@ discriminator = Discriminator()
 generator = Generator()
 one = torch.FloatTensor([1])
 mone = one * -1
-LAMBDA = 10
+LAMBDA = 1
 
 try:
     discriminator.load_state_dict(torch.load("./discriminator.pkl"))
@@ -36,7 +36,7 @@ except Exception as e:
     print('Load learner previous point: Failed')
 
 if if_vis:
-    TMUX = 'TMUX 0'
+    TMUX = 'TMUX 1'
     port = 8097
     from visdom import Visdom
     viz = Visdom(port=port)
@@ -142,8 +142,8 @@ if torch.cuda.is_available():
 loss_function = nn.BCELoss()
 
 if if_use_wgan_gp:
-    d_optim = torch.optim.Adam(discriminator.parameters(), lr=1e-4, betas=(0.5, 0.9))
-    g_optim = torch.optim.Adam(generator.parameters(), lr=1e-4, betas=(0.5, 0.9))
+    d_optim = torch.optim.RMSprop(discriminator.parameters(), lr=1e-4, eps=1e-5, alpha=0.99)
+    g_optim = torch.optim.RMSprop(generator.parameters(), lr=1e-4, eps=1e-5, betas=0.99)
 else:
     d_optim = torch.optim.Adagrad(discriminator.parameters(), lr=lr)
     g_optim = torch.optim.Adagrad(generator.parameters(), lr=lr)
@@ -177,6 +177,7 @@ def calc_gradient_penalty(netD, real_data, fake_data):
                               grad_outputs=torch.ones(disc_interpolates.size()).cuda() if use_cuda else torch.ones(
                                   disc_interpolates.size()),
                               create_graph=True, retain_graph=True, only_inputs=True)[0]
+
 
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
     return gradient_penalty
@@ -222,7 +223,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
 
                 with torch.no_grad():
                     fake_map = generator(batch_img)
-                    
+
                 inp_d_fake = torch.cat((batch_img,fake_map),1)
                 D_fake = discriminator(inp_d_fake)
 

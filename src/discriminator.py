@@ -29,7 +29,7 @@ class Discriminator(nn.Module):
         self.mymodules = nn.ModuleList([
             nn.Sequential(nn.Linear(64*32*24, 100), nn.Tanh()),
             nn.Sequential(nn.Linear(100,2), nn.Tanh()),
-            nn.Sequential(nn.Linear(2,1), nn.Sigmoid())
+            nn.Sequential(nn.Linear(2,1))
         ])
         #self._initialize_weights()
 
@@ -40,7 +40,7 @@ class Discriminator(nn.Module):
         x = self.mymodules[1](x)
         x = self.mymodules[2](x)
         return x
-    
+
     def num_flat_features(self, x):
         size = x.size()[1:]  # all dimensions except the batch dimension
         num_features = 1
@@ -65,7 +65,7 @@ class Discriminator(nn.Module):
             elif isinstance(m, nn.Linear):
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
-                
+
 #D = Discriminator()
 #x = Variable(torch.rand([17, 4, 192, 256]))
 #model = Discriminator()
