@@ -6,6 +6,7 @@ import time
 import os
 os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from tqdm import tqdm
+import torch.autograd as autograd
 from torch.autograd import Variable
 from logger import Logger
 
@@ -22,10 +23,17 @@ lr = 0.0003
 
 discriminator = Discriminator()
 generator = Generator()
+one = torch.FloatTensor([1])
+mone = one * -1
+LAMBDA = 10
+
 if torch.cuda.is_available():
     use_cuda = True
     discriminator.cuda()
     generator.cuda()
+    one = one.cuda()
+    mone = mone.cuda()
+
 loss_function = nn.BCELoss()
 
 if if_use_wgan_gp:
@@ -46,8 +54,9 @@ def to_variable(x,requires_grad=True):
     return Variable(x,requires_grad)
 
 def calc_gradient_penalty(netD, real_data, fake_data):
-    #print real_data.size()
-    alpha = torch.rand(BATCH_SIZE, 1)
+    alpha = torch.rand(batch_size, 1)
+    alpha = alpha.unsqueeze(1)
+    alpha = alpha.unsqueeze(1)
     alpha = alpha.expand(real_data.size())
     alpha = alpha.cuda() if use_cuda else alpha
 
@@ -102,6 +111,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 # train with real
                 D_real = discriminator(inp_d)
                 D_real = D_real.mean()
+                D_real = D_real.unsqueeze(0)
                 # print D_real
                 D_real.backward(mone)
 
@@ -110,6 +120,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 D_fake = discriminator(inp_d_fake)
 
                 D_fake = D_fake.mean()
+                D_fake = D_fake.unsqueeze(0)
                 D_fake.backward(one)
 
                 # train with gradient penalty
@@ -166,11 +177,12 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 fake_map = generator(batch_img)
                 inp_d = torch.cat((batch_img,fake_map),1)
 
-                outputs = discriminator(inp_d)
-                fake_score = outputs.data.mean()
+                fake_score = discriminator(inp_d)
+                fake_score = fake_score.mean()
+                fake_score = fake_score.unsqueeze(0)
                 fake_score.backward(mone)
-                g_cost = -fake_score
-                g_cost_avg += g_cost.data[0]
+                g_loss = -fake_score
+                g_cost_avg += g_loss.data[0]
                 g_optim.step()
 
             else:
