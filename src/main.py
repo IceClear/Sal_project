@@ -15,7 +15,7 @@ from discriminator import Discriminator
 from generator import Generator
 from utils import *
 
-if_use_wgan_gp = True
+if_use_wgan_gp = False
 if_vis = True
 
 logger = Logger('./logs')
@@ -209,8 +209,6 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
             if if_use_wgan_gp:
                 for p in discriminator.parameters():  # reset requires_grad
                     p.requires_grad = True  # they are set to False below in netG update
-                for p in generator.parameters():  # reset requires_grad
-                    p.requires_grad = False  # they are set to False below in netG update
 
                 discriminator.zero_grad()
                 inp_d = torch.cat((batch_img,batch_map),1)
@@ -222,7 +220,9 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 # print D_real
                 D_real.backward(mone)
 
-                fake_map = generator(batch_img)
+                with torch.no_grad():
+                    fake_map = generator(batch_img)
+                    
                 inp_d_fake = torch.cat((batch_img,fake_map),1)
                 D_fake = discriminator(inp_d_fake)
 
@@ -278,8 +278,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
             if if_use_wgan_gp:
                 for p in discriminator.parameters():
                     p.requires_grad = False  # to avoid computation
-                for p in generator.parameters():
-                    p.requires_grad = True
+
             g_optim.zero_grad()
 
             if if_use_wgan_gp:
@@ -293,6 +292,8 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 g_loss = -fake_score
                 g_cost_avg += g_loss.data[0]
                 g_optim.step()
+                # print(max(fake_map.data.))
+                # print(s)
 
                 if (idx+1)%100 == 0:
                     record(
@@ -322,6 +323,20 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
 
                 g_loss.backward()
                 g_optim.step()
+
+                if (idx+1)%100 == 0:
+                    record(
+                        name = 'img',
+                        value = batch_img[0:1],
+                        data_type = 'image',
+                    )
+
+                    record(
+                        name = 'sal_map',
+                        value = fake_map[0:1]*255,
+                        data_type = 'image',
+                    )
+
 
             info = {
                   'g_loss' : g_loss.data[0],
