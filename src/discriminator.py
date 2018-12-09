@@ -38,7 +38,7 @@ class Discriminator(nn.Module):
         x = x.view(-1, self.num_flat_features(x))
         x = self.mymodules[0](x)
         x = self.mymodules[1](x)
-        x = self.mymodules[2](x)
+        # x = self.mymodules[2](x)
         return x
 
     def num_flat_features(self, x):
