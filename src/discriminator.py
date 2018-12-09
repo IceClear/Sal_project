@@ -28,8 +28,8 @@ class Discriminator(nn.Module):
         )
         self.mymodules = nn.ModuleList([
             nn.Sequential(nn.Linear(64*32*24, 100), nn.Tanh()),
-            nn.Sequential(nn.Linear(100,2), nn.Tanh()),
-            nn.Sequential(nn.Linear(2,1))
+            nn.Sequential(nn.Linear(100,1)),
+            # nn.Sequential(nn.Linear(2,1), nn.Sigmoid())
         ])
         #self._initialize_weights()
 

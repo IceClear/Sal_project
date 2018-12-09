@@ -143,7 +143,7 @@ loss_function = nn.BCELoss()
 
 if if_use_wgan_gp:
     d_optim = torch.optim.RMSprop(discriminator.parameters(), lr=1e-4, eps=1e-5, alpha=0.99)
-    g_optim = torch.optim.RMSprop(generator.parameters(), lr=1e-4, eps=1e-5, betas=0.99)
+    g_optim = torch.optim.RMSprop(generator.parameters(), lr=1e-4, eps=1e-5, alpha=0.99)
 else:
     d_optim = torch.optim.Adagrad(discriminator.parameters(), lr=lr)
     g_optim = torch.optim.Adagrad(generator.parameters(), lr=lr)
