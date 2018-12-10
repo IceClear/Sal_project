@@ -28,13 +28,6 @@ one = torch.FloatTensor([1])
 mone = one * -1
 LAMBDA = 10
 
-try:
-    discriminator.load_state_dict(torch.load("./discriminator.pkl"))
-    generator.load_state_dict(torch.load("./generator.pkl"))
-    print('Load learner previous point: Successed')
-except Exception as e:
-    print('Load learner previous point: Failed')
-
 if if_vis:
     TMUX = 'TMUX 0'
     port = 8097
@@ -148,6 +141,14 @@ else:
     d_optim = torch.optim.Adagrad(discriminator.parameters(), lr=lr)
     g_optim = torch.optim.Adagrad(generator.parameters(), lr=lr)
 
+start_epoch = 0
+try:
+    discriminator, d_optim, start_epoch, _= load_checkpoint(discriminator, d_optim)
+    generator, g_optim, start_epoch, _= load_checkpoint(generator, g_optim)
+    print('Load learner previous point: Successed')
+except Exception as e:
+    print('Load learner previous point: Failed')
+
 num_epoch = 120
 dataloader = DataLoader(batch_size)
 num_batch = int(dataloader.num_batches)# length of data / batch_size
@@ -181,12 +182,31 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
     return gradient_penalty
 
+def load_checkpoint(model, optimizer, losslogger=None, filename='checkpoint.pth.tar'):
+    # Note: Input model & optimizer should be pre-defined.  This routine only updates their states.
+    start_epoch = 0
+    if os.path.isfile(filename):
+        print("=> loading checkpoint '{}'".format(filename))
+        checkpoint = torch.load(filename)
+        start_epoch = checkpoint['epoch']
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        losslogger = checkpoint['losslogger']
+        print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(filename, checkpoint['epoch']))
+    else:
+        print("=> no checkpoint found at '{}'".format(filename))
+
+    return model, optimizer, start_epoch, losslogger
+
 counter = 0
 start_time = time.time()
 DIR_TO_SAVE = "./generator_output/"
 if not os.path.exists(DIR_TO_SAVE):
     os.makedirs(DIR_TO_SAVE)
 validation_sample = cv2.imread("COCO_val2014_000000143859.png")
+
+current_epoch = start_epoch
 
 for current_epoch in tqdm(range(1,num_epoch+1)):
     n_updates = 1
@@ -295,7 +315,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 # print(max(fake_map.data.))
                 # print(s)
 
-                if (idx+1)%100 == 0:
+                if (idx+1)%1 == 0:
                     record(
                         name = 'img',
                         value = batch_img[0:1],
@@ -321,10 +341,12 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
 
                 g_cost_avg += g_loss.data[0]
 
+
                 g_loss.backward()
                 g_optim.step()
 
-                if (idx+1)%100 == 0:
+
+                if (idx+1)%10 == 0:
                     record(
                         name = 'img',
                         value = batch_img[0:1],
@@ -347,7 +369,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
 
         n_updates += 1
 
-        if (idx+1)%100 == 0:
+        if (idx+1)%10 == 0:
             print("Epoch [%d/%d], Step[%d/%d], d_loss: %.4f, g_loss: %.4f, D(x): %2.f, D(G(x)): %.2f, time: %4.4f"
 		        % (current_epoch, num_epoch, idx+1, num_batch, d_loss.data[0], g_loss.data[0],
 		        real_score, fake_score, time.time()-start_time))
@@ -372,9 +394,19 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
     # Save weights every 3 epoch
     if (current_epoch + 1) % 3 == 0:
         print('Epoch:', current_epoch, ' train_loss->', (d_cost_avg, g_cost_avg))
-        torch.save(generator.state_dict(), './generator.pkl')
-        torch.save(discriminator.state_dict(), './discriminator.pkl')
-    # predict(generator, validation_sample, current_epoch, DIR_TO_SAVE)
-torch.save(generator.state_dict(), './generator.pkl')
-torch.save(discriminator.state_dict(), './discriminator.pkl')
+        state_g = {'epoch': current_epoch, 'state_dict': generator.state_dict(),
+             'optimizer': g_optim.state_dict(), 'losslogger': None, }
+        torch.save(state_g, 'generator.pth.tar')
+        state_d = {'epoch': current_epoch, 'state_dict': discriminator.state_dict(),
+             'optimizer': d_optim.state_dict(), 'losslogger': None, }
+        torch.save(state_d, 'discriminator.pth.tar')
+    predict(generator, validation_sample, current_epoch, DIR_TO_SAVE)
+
+state_g = {'epoch': current_epoch, 'state_dict': generator.state_dict(),
+     'optimizer': g_optim.state_dict(), 'losslogger': None, }
+torch.save(state_g, 'generator.pth.tar')
+state_d = {'epoch': current_epoch, 'state_dict': discriminator.state_dict(),
+     'optimizer': d_optim.state_dict(), 'losslogger': None, }
+torch.save(state_d, 'discriminator.pth.tar')
+
 print('Done')
