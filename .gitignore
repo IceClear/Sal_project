@@ -102,3 +102,4 @@ ENV/
 
 src/*.pkl
 src/.ipynb_checkpoints/
+src/generator_output/

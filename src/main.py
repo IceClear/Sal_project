@@ -222,7 +222,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
 
                 with torch.no_grad():
                     fake_map = generator(batch_img)
-                    
+
                 inp_d_fake = torch.cat((batch_img,fake_map),1)
                 D_fake = discriminator(inp_d_fake)
 
@@ -374,7 +374,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
         print('Epoch:', current_epoch, ' train_loss->', (d_cost_avg, g_cost_avg))
         torch.save(generator.state_dict(), './generator.pkl')
         torch.save(discriminator.state_dict(), './discriminator.pkl')
-    predict(generator, validation_sample, current_epoch, DIR_TO_SAVE)
+    # predict(generator, validation_sample, current_epoch, DIR_TO_SAVE)
 torch.save(generator.state_dict(), './generator.pkl')
 torch.save(discriminator.state_dict(), './discriminator.pkl')
 print('Done')

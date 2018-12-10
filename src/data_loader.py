@@ -12,7 +12,7 @@ class DataLoader(object):
 
     def __init__(self, batch_size = 5):
         #reading data list
-        self.list_img = [k.split('/')[-1].split('.')[0] for k in glob.glob(os.path.join(pathToResizedImagesTrain, '*train*'))]
+        self.list_img = [k.split('/')[-1].split('.')[0] for k in glob.glob(os.path.join(pathToResizedImagesTrain, '*png'))]
         self.batch_size = batch_size
         self.size = len(self.list_img)
         self.cursor = 0
