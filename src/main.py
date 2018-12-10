@@ -4,7 +4,7 @@ import torch.nn as nn
 import numpy as np
 import time
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 from tqdm import tqdm
 import torch.autograd as autograd
 from torch.autograd import Variable
@@ -164,12 +164,12 @@ start_epoch = 0
 
 try:
     discriminator, d_optim, start_epoch, _= load_checkpoint(discriminator, d_optim, None, 'discriminator.pth.tar')
-    generator, g_optim, start_epoch, _= load_checkpoint(generator, g_optim, 'generator.pth.tar')
+    generator, g_optim, start_epoch, _= load_checkpoint(generator, g_optim, None, 'generator.pth.tar')
     print('Load learner previous point: Successed')
 except Exception as e:
     print('Load learner previous point: Failed')
 
-num_epoch = 120
+num_epoch = 240
 dataloader = DataLoader(batch_size)
 num_batch = int(dataloader.num_batches)# length of data / batch_size
 print(num_batch)
