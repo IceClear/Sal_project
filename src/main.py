@@ -117,6 +117,24 @@ if if_vis:
             else:
                 win_dic[text_name] = None
 
+def load_checkpoint(model, optimizer, losslogger=None, filename='checkpoint.pth.tar'):
+    # Note: Input model & optimizer should be pre-defined.  This routine only updates their states.
+    start_epoch = 0
+    if os.path.isfile(filename):
+        print("=> loading checkpoint '{}'".format(filename))
+        checkpoint = torch.load(filename)
+        start_epoch = checkpoint['epoch']
+        model.load_state_dict(checkpoint['state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer'])
+        losslogger = checkpoint['losslogger']
+        print("=> loaded checkpoint '{}' (epoch {})"
+                  .format(filename, checkpoint['epoch']))
+    else:
+        print("=> no checkpoint found at '{}'".format(filename))
+
+    return model, optimizer, start_epoch, losslogger
+
+
 '''record basic information'''
 record(
     'basic info',
@@ -141,10 +159,12 @@ else:
     d_optim = torch.optim.Adagrad(discriminator.parameters(), lr=lr)
     g_optim = torch.optim.Adagrad(generator.parameters(), lr=lr)
 
+
 start_epoch = 0
+
 try:
-    discriminator, d_optim, start_epoch, _= load_checkpoint(discriminator, d_optim)
-    generator, g_optim, start_epoch, _= load_checkpoint(generator, g_optim)
+    discriminator, d_optim, start_epoch, _= load_checkpoint(discriminator, d_optim, None, 'discriminator.pth.tar')
+    generator, g_optim, start_epoch, _= load_checkpoint(generator, g_optim, 'generator.pth.tar')
     print('Load learner previous point: Successed')
 except Exception as e:
     print('Load learner previous point: Failed')
@@ -182,22 +202,6 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * LAMBDA
     return gradient_penalty
 
-def load_checkpoint(model, optimizer, losslogger=None, filename='checkpoint.pth.tar'):
-    # Note: Input model & optimizer should be pre-defined.  This routine only updates their states.
-    start_epoch = 0
-    if os.path.isfile(filename):
-        print("=> loading checkpoint '{}'".format(filename))
-        checkpoint = torch.load(filename)
-        start_epoch = checkpoint['epoch']
-        model.load_state_dict(checkpoint['state_dict'])
-        optimizer.load_state_dict(checkpoint['optimizer'])
-        losslogger = checkpoint['losslogger']
-        print("=> loaded checkpoint '{}' (epoch {})"
-                  .format(filename, checkpoint['epoch']))
-    else:
-        print("=> no checkpoint found at '{}'".format(filename))
-
-    return model, optimizer, start_epoch, losslogger
 
 counter = 0
 start_time = time.time()
@@ -315,7 +319,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 # print(max(fake_map.data.))
                 # print(s)
 
-                if (idx+1)%1 == 0:
+                if (idx+1)%100 == 0:
                     record(
                         name = 'img',
                         value = batch_img[0:1],
@@ -346,7 +350,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 g_optim.step()
 
 
-                if (idx+1)%10 == 0:
+                if (idx+1)%100 == 0:
                     record(
                         name = 'img',
                         value = batch_img[0:1],
@@ -369,7 +373,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
 
         n_updates += 1
 
-        if (idx+1)%10 == 0:
+        if (idx+1)%100 == 0:
             print("Epoch [%d/%d], Step[%d/%d], d_loss: %.4f, g_loss: %.4f, D(x): %2.f, D(G(x)): %.2f, time: %4.4f"
 		        % (current_epoch, num_epoch, idx+1, num_batch, d_loss.data[0], g_loss.data[0],
 		        real_score, fake_score, time.time()-start_time))
