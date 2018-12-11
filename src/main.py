@@ -319,7 +319,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 # print(max(fake_map.data.))
                 # print(s)
 
-                if (idx+1)%100 == 0:
+                if (idx+1)%10 == 0:
                     record(
                         name = 'img',
                         value = batch_img[0:1],
@@ -350,7 +350,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
                 g_optim.step()
 
 
-                if (idx+1)%100 == 0:
+                if (idx+1)%10 == 0:
                     record(
                         name = 'img',
                         value = batch_img[0:1],
@@ -373,7 +373,7 @@ for current_epoch in tqdm(range(1,num_epoch+1)):
 
         n_updates += 1
 
-        if (idx+1)%100 == 0:
+        if (idx+1)%10 == 0:
             print("Epoch [%d/%d], Step[%d/%d], d_loss: %.4f, g_loss: %.4f, D(x): %2.f, D(G(x)): %.2f, time: %4.4f"
 		        % (current_epoch, num_epoch, idx+1, num_batch, d_loss.data[0], g_loss.data[0],
 		        real_score, fake_score, time.time()-start_time))
