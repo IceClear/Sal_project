@@ -12,7 +12,7 @@ TODO: We train the model on Salicon for 240 epoches. And finetune it on [CAT2000
 
 Test image | Prediction | Groundtruth
 :-------------------------:|:-------------------------:|:-------------------------:
-<img src="image/Action_139.jpg">  |  <img src="image/prediction.jpg">  |  <img src="image/gt.jpg">
+<img src="image/Action_139.jpg" width="352" height="198">  |  <img src="image/prediction.jpg" width="352" height="198">  |  <img src="image/gt.jpg" width="352" height="198">
 
 We can get CC with 0.82 and KL with 0.37 on [CAT2000](http://saliency.mit.edu/datasets.html) after finetuning.
 
