@@ -117,8 +117,9 @@ for img_index in list_img:
     map_gt = cv2.resize(map_gt,(img.shape[1],img.shape[0]))
     map_gt = cv2.cvtColor(map_gt, cv2.COLOR_BGR2GRAY)
     sal_predicted = predict(pretrained_dict,img)
-    sal_predicted = np.array(sal_predicted)*255
-    cv2.imwrite(os.path.join(pathToSaveMapsTest, img_index + '.png'), sal_predicted)
+    sal_predicted = np.array(sal_predicted)
+    sal_predicted = sal_predicted/np.max(sal_predicted)*255
+    cv2.imwrite(os.path.join(pathToSaveMapsTest, img_index + '.jpg'), sal_predicted)
     cc_temp = calc_cc_score(map_gt,sal_predicted)
     cc_list += [cc_temp]
     kl_temp = calc_kl_score(map_gt,sal_predicted)
